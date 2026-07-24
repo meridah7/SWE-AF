@@ -112,6 +112,7 @@ type buildInput struct {
 	RepoURL           string         `json:"repo_url"`
 	ArtifactsDir      string         `json:"artifacts_dir"`
 	AdditionalContext string         `json:"additional_context"`
+	WorkBranch        string         `json:"work_branch"`
 	Config            map[string]any `json:"config"`
 }
 
@@ -196,7 +197,7 @@ func Build(ctx context.Context, deps *Deps, input map[string]any) (any, error) {
 	// ── 1. GIT INIT (1 attempt, non-fatal) ──────────────────────────────────
 	deps.note(ctx, "Fast build: git init", "fast_build", "git_init")
 	var gitConfig map[string]any
-	rawGit, gitErr := deps.Call(ctx, node+".run_git_init", map[string]any{
+	gitInput := map[string]any{
 		"repo_path":       repoPath,
 		"goal":            in.Goal,
 		"artifacts_dir":   absArtifactsDir,
@@ -204,12 +205,22 @@ func Build(ctx context.Context, deps *Deps, input map[string]any) (any, error) {
 		"permission_mode": cfg.PermissionMode,
 		"ai_provider":     aiProvider,
 		"build_id":        "",
-	})
+	}
+	if in.WorkBranch != "" {
+		gitInput["work_branch"] = in.WorkBranch
+	}
+	rawGit, gitErr := deps.Call(ctx, node+".run_git_init", gitInput)
 	if gitErr != nil {
+		if in.WorkBranch != "" {
+			return nil, fmt.Errorf("work branch %q could not be initialized: %w", in.WorkBranch, gitErr)
+		}
 		deps.note(ctx, fmt.Sprintf("Git init exception (non-fatal): %s", gitErr),
 			"fast_build", "git_init", "error")
 	} else {
 		gitInit := rawGit
+		if in.WorkBranch != "" && (!mapBool(gitInit, "success") || getString(gitInit, "integration_branch", "") != in.WorkBranch) {
+			return nil, fmt.Errorf("work branch %q does not exist on the remote or could not be checked out", in.WorkBranch)
+		}
 		if mapBool(gitInit, "success") {
 			gitConfig = map[string]any{
 				"integration_branch":    gitInit["integration_branch"],

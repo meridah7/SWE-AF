@@ -23,6 +23,7 @@ type gitInitInput struct {
 	AIProvider     string `json:"ai_provider"`
 	PreviousError  string `json:"previous_error"`
 	BuildID        string `json:"build_id"`
+	WorkBranch     string `json:"work_branch"`
 }
 
 // RunGitInit initializes the git repo and creates the integration branch.
@@ -40,9 +41,10 @@ func RunGitInit(ctx context.Context, deps *Deps, input map[string]any) (any, err
 	deps.App.Note(ctx, fmt.Sprintf("Git init starting for: %s", truncateRunes(in.Goal, 80)), "git_init", "start")
 
 	taskPrompt := gitprompts.GitInitTaskPrompt(gitprompts.GitInitOptions{
-		RepoPath: in.RepoPath,
-		Goal:     in.Goal,
-		BuildID:  in.BuildID,
+		RepoPath:   in.RepoPath,
+		Goal:       in.Goal,
+		BuildID:    in.BuildID,
+		WorkBranch: in.WorkBranch,
 	})
 
 	// Build system prompt with error context if retrying.

@@ -88,9 +88,10 @@ const GitInitSystemPrompt = "You are a DevOps engineer setting up a git-based fe
 
 // GitInitOptions carries the arguments for GitInitTaskPrompt.
 type GitInitOptions struct {
-	RepoPath string
-	Goal     string
-	BuildID  string
+	RepoPath   string
+	Goal       string
+	BuildID    string
+	WorkBranch string
 }
 
 // GitInitTaskPrompt builds the task prompt for the git initialization agent
@@ -104,6 +105,9 @@ func GitInitTaskPrompt(opts GitInitOptions) string {
 	if opts.BuildID != "" {
 		sections = append(sections, fmt.Sprintf("- **Build ID**: `%s` (prefix integration branch slug with this)", opts.BuildID))
 	}
+	if opts.WorkBranch != "" {
+		sections = append(sections, fmt.Sprintf("- **Existing work branch**: `%s` (fetch and check out this remote branch; do not create a new integration branch)", opts.WorkBranch))
+	}
 
 	sections = append(sections, "\n## Your Task\n"+
 		"1. Check if `.git` exists in the repository path.\n"+
@@ -113,6 +117,9 @@ func GitInitTaskPrompt(opts GitInitOptions) string {
 		"5. Create the `.worktrees/` directory and ensure it's in `.gitignore`.\n"+
 		"6. Detect the remote origin URL and default branch (if any).\n"+
 		"7. Return a GitInitResult JSON object.")
+	if opts.WorkBranch != "" {
+		sections = append(sections, fmt.Sprintf("\n## Existing Work Branch\nFetch `origin/%s` and check it out directly as the integration branch. Do not create a new branch. If it does not exist on the remote, return `success=false` with a clear error before any planning or coding work.", opts.WorkBranch))
+	}
 
 	return strings.Join(sections, "\n")
 }

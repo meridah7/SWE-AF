@@ -138,6 +138,7 @@ func PRResolverTaskPrompt(opts PRResolverTaskOptions) string {
 	taskLines = append(taskLines,
 		strconv.Itoa(step)+". Re-run failing tests locally to confirm they pass.")
 	step++
+	taskLines = append(taskLines, "Before committing, run the test suite for every package or module touched, plus gofmt and repository-standard linters where applicable. Do NOT push if any affected test or required check fails; report every test command and outcome in the result.")
 	taskLines = append(taskLines,
 		strconv.Itoa(step)+". Commit + `git push origin "+opts.HeadBranch+"` — do NOT create "+
 			"a new PR.")
@@ -170,6 +171,8 @@ push. The PR already exists — do NOT create a new one.
 4. The fix is committed and pushed to the PR's head branch (not a new
    branch).
 5. You have re-run the relevant tests locally and they pass.
+
+Before committing, you MUST run the test suite for every package or module you touched, plus gofmt and any repository-standard linters where applicable. You MUST NOT push if any affected test or required check fails. Report every test command and its outcome in your result.
 
 ## ABSOLUTELY FORBIDDEN — these are workarounds, not fixes
 

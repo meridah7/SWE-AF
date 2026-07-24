@@ -18,5 +18,6 @@ The orchestrator already merged `origin/main` into the head branch with no confl
 2. Fix every failing CI check by changing PRODUCTION code (no silenced tests).
 3. Address every actionable review comment, recording each one in `addressed_comments` (true/false + brief note).
 4. Re-run failing tests locally to confirm they pass.
+Before committing, run the test suite for every package or module touched, plus gofmt and repository-standard linters where applicable. Do NOT push if any affected test or required check fails; report every test command and outcome in the result.
 5. Commit + `git push origin feature` — do NOT create a new PR.
 6. Return a `PRResolveResult` JSON object.

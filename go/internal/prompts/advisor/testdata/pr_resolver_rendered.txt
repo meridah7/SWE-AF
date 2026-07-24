@@ -41,5 +41,6 @@ Keep API stable.
 3. Fix every failing CI check by changing PRODUCTION code (no silenced tests).
 4. Address every actionable review comment, recording each one in `addressed_comments` (true/false + brief note).
 5. Re-run failing tests locally to confirm they pass.
+Before committing, run the test suite for every package or module touched, plus gofmt and repository-standard linters where applicable. Do NOT push if any affected test or required check fails; report every test command and outcome in the result.
 6. Commit + `git push origin feature` — do NOT create a new PR.
 7. Return a `PRResolveResult` JSON object.

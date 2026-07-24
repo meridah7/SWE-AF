@@ -52,6 +52,10 @@ func ResolveHandler(ctx context.Context, deps *Deps, input map[string]any) (any,
 		return nil, err
 	}
 	cfg.EnableGithubPR = false // the PR already exists — never create
+	permissionMode := cfg.PermissionMode
+	if permissionMode == "" {
+		permissionMode = "auto"
+	}
 
 	if in.PRNumber == 0 || in.HeadBranch == "" || in.RepoURL == "" || in.PRURL == "" {
 		return nil, errors.New(
@@ -135,6 +139,7 @@ func ResolveHandler(ctx context.Context, deps *Deps, input map[string]any) (any,
 		resolverModel = "sonnet"
 	}
 
+	remoteBefore := remoteBranchSHA(ctx, repoPath, in.HeadBranch)
 	resolveResult, err := deps.Call(ctx, "run_pr_resolver", map[string]any{
 		"repo_path":          repoPath,
 		"pr_number":          in.PRNumber,
@@ -148,7 +153,7 @@ func ResolveHandler(ctx context.Context, deps *Deps, input map[string]any) (any,
 		"goal":               in.Goal,
 		"additional_context": in.AdditionalContext,
 		"model":              resolverModel,
-		"permission_mode":    cfg.PermissionMode,
+		"permission_mode":    permissionMode,
 		"ai_provider":        cfg.AIProvider(),
 	}, "run_pr_resolver")
 	if err != nil {
@@ -168,6 +173,19 @@ func ResolveHandler(ctx context.Context, deps *Deps, input map[string]any) (any,
 		} else {
 			deps.Note(ctx, fmt.Sprintf("Resolve push failed: %s", strings.TrimSpace(push.Stderr)),
 				"resolve", "push", "error")
+		}
+	}
+	if resolverReportInvalid(resolveResult) {
+		remoteAfter := remoteBranchSHA(ctx, repoPath, in.HeadBranch)
+		if remoteBefore != "" && remoteAfter != "" && remoteBefore != remoteAfter {
+			resolveResult["pushed"] = true
+			resolveResult["fixed"] = true
+			resolveResult["commit_shas"] = remoteCommitSHAs(ctx, repoPath, remoteBefore, remoteAfter)
+			resolveResult["files_changed"] = remoteFilesChanged(ctx, repoPath, remoteBefore, remoteAfter)
+			resolveResult["summary"] = "work pushed; agent report invalid"
+			resolveResult["error_message"] = "agent report invalid; verified work pushed to the remote branch"
+			pushed = true
+			deps.Note(ctx, "Resolve: agent report invalid, but verified work pushed to the remote branch", "resolve", "report", "warning")
 		}
 	}
 
@@ -262,6 +280,49 @@ func ResolveHandler(ctx context.Context, deps *Deps, input map[string]any) (any,
 		"summary":        summary,
 		"success":        success,
 	}, nil
+}
+
+func resolverReportInvalid(result map[string]any) bool {
+	return mapStr(result, "error_message", "") == "PR resolver agent failed to produce a valid result." ||
+		mapStr(result, "summary", "") == "PR resolver agent failed to produce a valid result."
+}
+
+func remoteBranchSHA(ctx context.Context, repoPath, branch string) string {
+	r := runGit(ctx, repoPath, "ls-remote", "origin", "refs/heads/"+branch)
+	if r.ExitCode != 0 {
+		return ""
+	}
+	fields := strings.Fields(r.Stdout)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+func remoteCommitSHAs(ctx context.Context, repoPath, before, after string) []string {
+	r := runGit(ctx, repoPath, "rev-list", "--reverse", before+".."+after)
+	if r.ExitCode != 0 {
+		return []string{}
+	}
+	return nonEmptyLines(r.Stdout)
+}
+
+func remoteFilesChanged(ctx context.Context, repoPath, before, after string) []string {
+	r := runGit(ctx, repoPath, "diff", "--name-only", before, after)
+	if r.ExitCode != 0 {
+		return []string{}
+	}
+	return nonEmptyLines(r.Stdout)
+}
+
+func nonEmptyLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 // attemptBaseMerge fetches base_branch and merges it into the current branch.
